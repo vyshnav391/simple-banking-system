@@ -1,0 +1,294 @@
+-- =============================================
+-- Simple Banking System Database
+-- =============================================
+
+-- Create Database
+DROP DATABASE IF EXISTS banking_system;
+CREATE DATABASE banking_system;
+USE banking_system;
+
+-- =============================================
+-- Table: users (System users - customers and admins)
+-- =============================================
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(15),
+    address TEXT,
+    date_of_birth DATE,
+    user_type ENUM('customer', 'admin') DEFAULT 'customer',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- Table: accounts (Bank accounts)
+-- =============================================
+CREATE TABLE accounts (
+    account_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    account_number VARCHAR(20) UNIQUE NOT NULL,
+    account_type ENUM('savings', 'current', 'fixed_deposit') DEFAULT 'savings',
+    balance DECIMAL(15, 2) DEFAULT 0.00,
+    status ENUM('active', 'blocked', 'pending') DEFAULT 'pending',
+    opening_date DATE NOT NULL,
+    last_transaction_date DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- Table: transactions (All financial transactions)
+-- =============================================
+CREATE TABLE transactions (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    transaction_type ENUM('deposit', 'withdraw', 'transfer_in', 'transfer_out') NOT NULL,
+    amount DECIMAL(15, 2) NOT NULL,
+    balance_after DECIMAL(15, 2) NOT NULL,
+    description VARCHAR(255),
+    related_account_id INT,
+    transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by INT,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (related_account_id) REFERENCES accounts(account_id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- =============================================
+-- Table: account_approval (Track account approval/blocking)
+-- =============================================
+CREATE TABLE account_approval (
+    approval_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    admin_id INT NOT NULL,
+    action ENUM('approved', 'blocked', 'unblocked') NOT NULL,
+    reason TEXT,
+    action_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- Table: audit_log (System activity log)
+-- =============================================
+CREATE TABLE audit_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    action VARCHAR(100) NOT NULL,
+    details TEXT,
+    ip_address VARCHAR(45),
+    log_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- =============================================
+-- Insert Sample Data
+-- =============================================
+
+-- Insert Users (password is hashed in real systems, here using plain text for demo)
+INSERT INTO users (username, password, email, full_name, phone, address, date_of_birth, user_type) VALUES
+('admin', 'admin123', 'admin@bank.com', 'System Administrator', '9876543210', 'Bank Head Office', '1985-05-15', 'admin'),
+('john_doe', 'pass123', 'john@email.com', 'John Doe', '9876543211', '123 Main St, Chennai', '1990-03-20', 'customer'),
+('jane_smith', 'pass456', 'jane@email.com', 'Jane Smith', '9876543212', '456 Oak Ave, Mumbai', '1988-07-10', 'customer'),
+('bob_wilson', 'pass789', 'bob@email.com', 'Bob Wilson', '9876543213', '789 Pine Rd, Delhi', '1995-11-25', 'customer'),
+('alice_brown', 'pass321', 'alice@email.com', 'Alice Brown', '9876543214', '321 Elm St, Bangalore', '1992-09-05', 'customer');
+
+-- Insert Accounts
+INSERT INTO accounts (user_id, account_number, account_type, balance, status, opening_date) VALUES
+(2, 'ACC1001234567', 'savings', 50000.00, 'active', '2024-01-15'),
+(2, 'ACC1001234568', 'current', 25000.00, 'active', '2024-02-10'),
+(3, 'ACC1001234569', 'savings', 75000.00, 'active', '2024-01-20'),
+(4, 'ACC1001234570', 'current', 100000.00, 'active', '2024-03-05'),
+(5, 'ACC1001234571', 'savings', 30000.00, 'pending', '2024-10-20'),
+(5, 'ACC1001234572', 'fixed_deposit', 200000.00, 'blocked', '2024-05-12');
+
+-- Insert Transactions
+INSERT INTO transactions (account_id, transaction_type, amount, balance_after, description, related_account_id, created_by) VALUES
+-- John's savings account transactions
+(1, 'deposit', 50000.00, 50000.00, 'Initial deposit', NULL, 2),
+(1, 'withdraw', 5000.00, 45000.00, 'ATM withdrawal', NULL, 2),
+(1, 'deposit', 10000.00, 55000.00, 'Salary credit', NULL, 1),
+(1, 'transfer_out', 5000.00, 50000.00, 'Transfer to current account', 2, 2),
+
+-- John's current account transactions
+(2, 'deposit', 30000.00, 30000.00, 'Initial deposit', NULL, 2),
+(2, 'transfer_in', 5000.00, 35000.00, 'Transfer from savings', 1, 2),
+(2, 'withdraw', 10000.00, 25000.00, 'Business expense', NULL, 2),
+
+-- Jane's savings account transactions
+(3, 'deposit', 75000.00, 75000.00, 'Initial deposit', NULL, 3),
+(3, 'withdraw', 5000.00, 70000.00, 'Shopping', NULL, 3),
+(3, 'deposit', 5000.00, 75000.00, 'Freelance payment', NULL, 3),
+
+-- Bob's current account transactions
+(4, 'deposit', 100000.00, 100000.00, 'Initial deposit', NULL, 4),
+(4, 'withdraw', 15000.00, 85000.00, 'Rent payment', NULL, 4),
+(4, 'deposit', 15000.00, 100000.00, 'Client payment', NULL, 4),
+
+-- Alice's accounts
+(5, 'deposit', 30000.00, 30000.00, 'Initial deposit', NULL, 5),
+(6, 'deposit', 200000.00, 200000.00, 'Fixed deposit investment', NULL, 5);
+
+-- Insert Account Approvals
+INSERT INTO account_approval (account_id, admin_id, action, reason) VALUES
+(1, 1, 'approved', 'All documents verified'),
+(2, 1, 'approved', 'Business account approved'),
+(3, 1, 'approved', 'Standard verification completed'),
+(4, 1, 'approved', 'Corporate account approved'),
+(6, 1, 'blocked', 'Suspicious activity detected - under investigation');
+
+-- Insert Audit Logs
+INSERT INTO audit_log (user_id, action, details, ip_address) VALUES
+(1, 'LOGIN', 'Admin logged in', '192.168.1.1'),
+(1, 'APPROVE_ACCOUNT', 'Approved account ACC1001234567', '192.168.1.1'),
+(2, 'LOGIN', 'Customer logged in', '192.168.1.100'),
+(2, 'DEPOSIT', 'Deposited 10000 to account ACC1001234567', '192.168.1.100'),
+(2, 'TRANSFER', 'Transferred 5000 from ACC1001234567 to ACC1001234568', '192.168.1.100'),
+(3, 'LOGIN', 'Customer logged in', '192.168.1.105'),
+(3, 'WITHDRAW', 'Withdrew 5000 from account ACC1001234569', '192.168.1.105'),
+(1, 'BLOCK_ACCOUNT', 'Blocked account ACC1001234572', '192.168.1.1');
+
+-- =============================================
+-- Useful Views for Reports
+-- =============================================
+
+-- View: Customer Account Summary
+CREATE VIEW customer_account_summary AS
+SELECT 
+    u.user_id,
+    u.full_name,
+    u.email,
+    a.account_number,
+    a.account_type,
+    a.balance,
+    a.status,
+    a.opening_date
+FROM users u
+JOIN accounts a ON u.user_id = a.user_id
+WHERE u.user_type = 'customer';
+
+-- View: Recent Transactions
+CREATE VIEW recent_transactions AS
+SELECT 
+    t.transaction_id,
+    a.account_number,
+    u.full_name,
+    t.transaction_type,
+    t.amount,
+    t.balance_after,
+    t.description,
+    t.transaction_date
+FROM transactions t
+JOIN accounts a ON t.account_id = a.account_id
+JOIN users u ON a.user_id = u.user_id
+ORDER BY t.transaction_date DESC;
+
+-- View: Pending Accounts
+CREATE VIEW pending_accounts AS
+SELECT 
+    a.account_id,
+    a.account_number,
+    u.full_name,
+    u.email,
+    u.phone,
+    a.account_type,
+    a.opening_date
+FROM accounts a
+JOIN users u ON a.user_id = u.user_id
+WHERE a.status = 'pending';
+
+-- =============================================
+-- Stored Procedures
+-- =============================================
+
+-- Procedure: Process Deposit
+DELIMITER //
+CREATE PROCEDURE process_deposit(
+    IN p_account_id INT,
+    IN p_amount DECIMAL(15,2),
+    IN p_description VARCHAR(255),
+    IN p_created_by INT
+)
+BEGIN
+    DECLARE v_new_balance DECIMAL(15,2);
+    
+    -- Get current balance
+    SELECT balance INTO v_new_balance FROM accounts WHERE account_id = p_account_id;
+    
+    -- Calculate new balance
+    SET v_new_balance = v_new_balance + p_amount;
+    
+    -- Update account balance
+    UPDATE accounts 
+    SET balance = v_new_balance, 
+        last_transaction_date = NOW() 
+    WHERE account_id = p_account_id;
+    
+    -- Insert transaction record
+    INSERT INTO transactions (account_id, transaction_type, amount, balance_after, description, created_by)
+    VALUES (p_account_id, 'deposit', p_amount, v_new_balance, p_description, p_created_by);
+END //
+DELIMITER ;
+
+-- Procedure: Process Withdrawal
+DELIMITER //
+CREATE PROCEDURE process_withdrawal(
+    IN p_account_id INT,
+    IN p_amount DECIMAL(15,2),
+    IN p_description VARCHAR(255),
+    IN p_created_by INT
+)
+BEGIN
+    DECLARE v_new_balance DECIMAL(15,2);
+    DECLARE v_current_balance DECIMAL(15,2);
+    
+    -- Get current balance
+    SELECT balance INTO v_current_balance FROM accounts WHERE account_id = p_account_id;
+    
+    -- Check sufficient balance
+    IF v_current_balance >= p_amount THEN
+        SET v_new_balance = v_current_balance - p_amount;
+        
+        -- Update account balance
+        UPDATE accounts 
+        SET balance = v_new_balance, 
+            last_transaction_date = NOW() 
+        WHERE account_id = p_account_id;
+        
+        -- Insert transaction record
+        INSERT INTO transactions (account_id, transaction_type, amount, balance_after, description, created_by)
+        VALUES (p_account_id, 'withdraw', p_amount, v_new_balance, p_description, p_created_by);
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient balance';
+    END IF;
+END //
+DELIMITER ;
+
+-- =============================================
+-- Sample Queries for Testing
+-- =============================================
+
+-- View all customers with their accounts
+-- SELECT * FROM customer_account_summary;
+
+-- View all recent transactions
+-- SELECT * FROM recent_transactions LIMIT 20;
+
+-- View pending accounts
+-- SELECT * FROM pending_accounts;
+
+-- Get account balance
+-- SELECT account_number, balance, status FROM accounts WHERE account_number = 'ACC1001234567';
+
+-- Get transaction history for an account
+-- SELECT * FROM transactions WHERE account_id = 1 ORDER BY transaction_date DESC;
+
+-- Get user's all accounts
+-- SELECT * FROM accounts WHERE user_id = 2;
+
+SELECT 'Database created successfully!' AS Status;
