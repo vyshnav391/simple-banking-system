@@ -64,5 +64,5 @@ This project includes database schema design, views, stored procedures, sample d
 
 ---
 
-## 📁 Project Structure (Suggested)
+
 
